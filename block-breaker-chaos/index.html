@@ -430,6 +430,81 @@
       box-shadow: 0 12px 30px rgba(0, 212, 255, 0.6);
     }
     
+    /* Leaderboard */
+    .leaderboard {
+      width: 90%;
+      max-width: 400px;
+      margin: 2rem auto;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 15px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+    }
+    
+    .leaderboard h3 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #00d4ff;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    
+    .leaderboard-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .leaderboard-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.8rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      font-family: 'Fredoka', sans-serif;
+      transition: all 0.2s ease;
+    }
+    
+    .leaderboard-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateX(5px);
+    }
+    
+    .leaderboard-item.current-player {
+      background: rgba(0, 212, 255, 0.2);
+      border: 2px solid #00d4ff;
+    }
+    
+    .leaderboard-rank {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffd93d;
+      min-width: 40px;
+    }
+    
+    .leaderboard-name {
+      flex: 1;
+      color: #fff;
+      font-size: 1rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .leaderboard-score {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #00d4ff;
+    }
+    
+    .loading {
+      text-align: center;
+      color: #a0a0a0;
+      padding: 1rem;
+      font-family: 'Fredoka', sans-serif;
+    }
 
     /* Desktop hint */
     .desktop-hint {
@@ -536,6 +611,14 @@
     <h2>Game Over!</h2>
     <div class="final-score" id="final-score">0</div>
     <div class="score-label">final score</div>
+    
+    <div class="leaderboard" id="leaderboard">
+      <h3>Top Scores</h3>
+      <div class="leaderboard-list" id="leaderboard-list">
+        <div class="loading">Loading leaderboard...</div>
+      </div>
+    </div>
+    
     <button class="restart-btn" id="restart-btn">Play Again</button>
   </div>
   

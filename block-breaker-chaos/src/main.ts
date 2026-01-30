@@ -43,6 +43,110 @@ interface Explosion {
   maxLife: number;
 }
 
+class SoundManager {
+  private audioContext: AudioContext | null = null;
+  private settings: Settings;
+
+  constructor(settings: Settings) {
+    this.settings = settings;
+    if (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined') {
+      this.audioContext = new (AudioContext || (window as any).webkitAudioContext)();
+    }
+  }
+
+  private playTone(frequency: number, duration: number, type: OscillatorType = 'sine', volume: number = 0.3): void {
+    if (!this.settings.fx || !this.audioContext) return;
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration);
+  }
+
+  launch(): void {
+    this.playTone(400, 0.1, 'sine', 0.2);
+  }
+
+  hit(): void {
+    this.playTone(600, 0.05, 'square', 0.15);
+  }
+
+  destroy(): void {
+    if (!this.settings.fx || !this.audioContext) return;
+    const ctx = this.audioContext;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }
+
+  levelComplete(): void {
+    if (!this.settings.fx || !this.audioContext) return;
+    const ctx = this.audioContext;
+    const now = ctx.currentTime;
+
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const startTime = now + i * 0.1;
+      gain.gain.setValueAtTime(0.2, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.2);
+    });
+  }
+
+  gameOver(): void {
+    if (!this.settings.fx || !this.audioContext) return;
+    const ctx = this.audioContext;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+    osc.start(now);
+    osc.stop(now + 0.5);
+  }
+}
+
 class BlockBreakerGame {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -69,6 +173,7 @@ class BlockBreakerGame {
   private aimX: number;
   private aimY: number;
   private collisionPairs: Set<string>;
+  private soundManager: SoundManager;
 
   constructor() {
     console.log('[BlockBreakerGame] Initializing');
@@ -109,6 +214,7 @@ class BlockBreakerGame {
     };
     
     this.settings = this.loadSettings();
+    this.soundManager = new SoundManager(this.settings);
     this.setupCanvas();
     this.setupEventListeners();
     this.setupCollisionEvents();
@@ -406,6 +512,7 @@ class BlockBreakerGame {
     });
     World.add(this.world, ball);
     
+    this.soundManager.launch();
     this.triggerHaptic('medium');
   }
 
@@ -417,6 +524,7 @@ class BlockBreakerGame {
         this.destroyBlock(block);
       } else {
         this.createParticles(block.body.position.x, block.body.position.y, 5, block.color);
+        this.soundManager.hit();
         this.triggerHaptic('light');
       }
     }
@@ -435,6 +543,7 @@ class BlockBreakerGame {
       
       this.createExplosion(block.body.position.x, block.body.position.y);
       this.createParticles(block.body.position.x, block.body.position.y, 20, block.color);
+      this.soundManager.destroy();
       this.triggerHaptic('heavy');
       
       if (this.blocks.length === 0) {
@@ -448,6 +557,7 @@ class BlockBreakerGame {
     this.level++;
     this.score += 100 * this.level;
     this.updateScore();
+    this.soundManager.levelComplete();
     this.triggerHaptic('success');
     
     this.balls.forEach(ball => World.remove(this.world, ball.body));
@@ -507,13 +617,60 @@ class BlockBreakerGame {
     console.log('[BlockBreakerGame] Game over');
     this.gameState = 'GAME_OVER';
     
+    document.getElementById('final-score')!.textContent = this.score.toString();
+    document.getElementById('game-over')?.classList.remove('hidden');
     document.getElementById('hud')?.classList.add('hidden');
     document.getElementById('settings-btn')?.classList.add('hidden');
-    document.getElementById('game-over')?.classList.remove('hidden');
-    document.getElementById('final-score')!.textContent = this.score.toString();
     
+    this.soundManager.gameOver();
     this.submitScore(this.score);
-    this.triggerHaptic('success');
+    this.loadLeaderboard();
+    this.triggerHaptic('error');
+  }
+
+  private async loadLeaderboard(): Promise<void> {
+    const leaderboardList = document.getElementById('leaderboard-list');
+    if (!leaderboardList) return;
+
+    try {
+      if (typeof (window as any).getLeaderboard === 'function') {
+        const leaderboard = await (window as any).getLeaderboard();
+        
+        if (leaderboard && leaderboard.length > 0) {
+          leaderboardList.innerHTML = '';
+          
+          leaderboard.slice(0, 10).forEach((entry: any, index: number) => {
+            const item = document.createElement('div');
+            item.className = 'leaderboard-item';
+            
+            if (entry.isCurrentPlayer) {
+              item.classList.add('current-player');
+            }
+            
+            item.innerHTML = `
+              <div class="leaderboard-rank">#${index + 1}</div>
+              <div class="leaderboard-name">${entry.name || 'Anonymous'}</div>
+              <div class="leaderboard-score">${entry.score}</div>
+            `;
+            
+            leaderboardList.appendChild(item);
+          });
+        } else {
+          leaderboardList.innerHTML = '<div class="loading">No scores yet. Be the first!</div>';
+        }
+      } else {
+        leaderboardList.innerHTML = `
+          <div class="leaderboard-item">
+            <div class="leaderboard-rank">#1</div>
+            <div class="leaderboard-name">You</div>
+            <div class="leaderboard-score">${this.score}</div>
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('[BlockBreakerGame] Error loading leaderboard:', error);
+      leaderboardList.innerHTML = '<div class="loading">Unable to load leaderboard</div>';
+    }
   }
 
   private submitScore(score: number): void {
